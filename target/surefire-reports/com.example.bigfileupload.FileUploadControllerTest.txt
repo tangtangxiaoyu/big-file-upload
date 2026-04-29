@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.example.bigfileupload.FileUploadControllerTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.026 s - in com.example.bigfileupload.FileUploadControllerTest

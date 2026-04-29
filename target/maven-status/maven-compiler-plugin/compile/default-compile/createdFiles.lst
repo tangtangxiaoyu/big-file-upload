@@ -1,0 +1,6 @@
+com\example\bigfileupload\controller\FileUploadController.class
+com\example\bigfileupload\service\FileUploadService$MergeResult.class
+com\example\bigfileupload\config\CorsConfig.class
+com\example\bigfileupload\BigFileUploadApplication.class
+com\example\bigfileupload\service\FileUploadService$FileInfo.class
+com\example\bigfileupload\service\FileUploadService.class

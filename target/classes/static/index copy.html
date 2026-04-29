@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大文件上传带MD5校验</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --bg-elevated: #222230;
+            --accent-primary: #00ffaa;
+            --accent-secondary: #0088ff;
+            --accent-glow: rgba(0, 255, 170, 0.15);
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --text-muted: #55556a;
+            --border-color: #2a2a3a;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --error: #ff4466;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+            background: var(--bg-primary);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: var(--text-primary);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                linear-gradient(90deg, var(--border-color) 1px, transparent 1px),
+                linear-gradient(var(--border-color) 1px, transparent 1px);
+            background-size: 60px 60px;
+            opacity: 0.3;
+            z-index: -2;
+            animation: gridPulse 8s ease-in-out infinite;
+        }
+
+        /* Gradient overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(0, 255, 170, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(0, 136, 255, 0.06) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        @keyframes gridPulse {
+            0%, 100% { opacity: 0.25; }
+            50% { opacity: 0.35; }
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 32px;
+            color: var(--accent-primary);
+            letter-spacing: 2px;
+            position: relative;
+            padding-bottom: 16px;
+        }
+
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+        }
+
+        h1::before {
+            content: '◈';
+            display: block;
+            font-size: 0.5rem;
+            color: var(--accent-secondary);
+            margin-bottom: 8px;
+            letter-spacing: 8px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 16px;
+            position: relative;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary), var(--accent-primary));
+            opacity: 0.6;
+        }
+
+        .card:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 30px var(--accent-glow), inset 0 0 30px rgba(0, 255, 170, 0.02);
+        }
+
+        .card h3 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .card h3::before {
+            content: '▸';
+            color: var(--accent-primary);
+            font-size: 0.7rem;
+        }
+
+        .upload-container {
+            border: 2px dashed var(--border-color);
+            border-radius: 6px;
+            padding: 48px 24px;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .upload-container::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, var(--accent-glow) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .upload-container:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-elevated);
+        }
+
+        .upload-container:hover::before {
+            opacity: 1;
+        }
+
+        .upload-container:hover .upload-icon {
+            transform: scale(1.1);
+            color: var(--accent-primary);
+        }
+
+        .upload-container.drag-over {
+            border-color: var(--accent-primary);
+            background: rgba(0, 255, 170, 0.05);
+            box-shadow: 0 0 40px var(--accent-glow);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .upload-text {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 28px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
+            transform: translateX(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .btn:hover:not(:disabled)::before {
+            transform: translateX(100%);
+        }
+
+        .btn-primary {
+            background: transparent;
+            color: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            box-shadow: 0 0 20px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: transparent;
+            color: var(--success);
+            border-color: var(--success);
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: var(--success);
+            color: var(--bg-primary);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: transparent;
+            color: var(--warning);
+            border-color: var(--warning);
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background: var(--warning);
+            color: var(--bg-primary);
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+            border-color: var(--border-color);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .file-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .info-item {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 4px;
+            border-left: 2px solid var(--accent-primary);
+            position: relative;
+        }
+
+        .info-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 60px;
+            background: linear-gradient(90deg, var(--accent-glow), transparent);
+            opacity: 0.3;
+        }
+
+        .info-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .info-value {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .progress-container {
+            margin: 16px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid var(--border-color);
+        }
+
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 10px,
+                rgba(0, 255, 170, 0.1) 10px,
+                rgba(0, 255, 170, 0.1) 20px
+            );
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-primary);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 30px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+            animation: progressShine 1.5s ease-in-out infinite;
+        }
+
+        @keyframes progressShine {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.8; }
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--accent-primary);
+            letter-spacing: 1px;
+        }
+
+        .status {
+            margin: 16px 0;
+            padding: 16px 20px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .status.success {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .status.error {
+            background: rgba(255, 68, 102, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(255, 68, 102, 0.3);
+        }
+
+        .status.info {
+            background: rgba(0, 136, 255, 0.1);
+            color: var(--accent-secondary);
+            border: 1px solid rgba(0, 136, 255, 0.3);
+        }
+
+        .chunk-status {
+            margin-top: 20px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .chunk-status-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .chunk-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+        }
+
+        .chunk-item {
+            width: 16px;
+            height: 16px;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+
+        .chunk-pending {
+            background: var(--bg-elevated);
+            border-color: var(--border-color);
+        }
+
+        .chunk-uploading {
+            background: var(--accent-secondary);
+            border-color: var(--accent-secondary);
+            animation: chunkPulse 0.8s ease-in-out infinite;
+            box-shadow: 0 0 8px rgba(0, 136, 255, 0.4);
+        }
+
+        @keyframes chunkPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.15); }
+        }
+
+        .chunk-success {
+            background: var(--success);
+            border-color: var(--success);
+            box-shadow: 0 0 6px rgba(0, 255, 136, 0.3);
+        }
+
+        .chunk-error {
+            background: var(--error);
+            border-color: var(--error);
+            box-shadow: 0 0 6px rgba(255, 68, 102, 0.3);
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        /* Scanline effect */
+        .card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+            pointer-events: none;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 24px 16px;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .upload-container {
+                padding: 32px 16px;
+            }
+
+            .btn {
+                padding: 12px 20px;
+                font-size: 0.8rem;
+            }
+
+            .file-info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .chunk-item {
+                width: 14px;
+                height: 14px;
+            }
+        }
+    </style>
+    <script src="/js/spark-md5.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>DATA UPLOAD TERMINAL</h1>
+
+        <div class="card">
+            <div class="upload-container" id="dropZone">
+                <div class="upload-icon">◈</div>
+                <p class="upload-text">[ 点击或拖拽文件到此处 ]</p>
+                <input type="file" id="fileInput" class="file-input" />
+            </div>
+            <div class="btn-group">
+                <button id="uploadBtn" class="btn btn-primary" disabled>▶ 开始上传</button>
+                <button id="checkBtn" class="btn btn-warning" disabled>◉ 检查文件</button>
+            </div>
+        </div>
+
+        <div id="fileInfo" class="card" style="display: none;">
+            <h3>文件信息</h3>
+            <div class="file-info-grid">
+                <div class="info-item">
+                    <div class="info-label">文件名称</div>
+                    <div class="info-value" id="fileName"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">文件大小</div>
+                    <div class="info-value" id="fileSize"></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">MD5 校验值</div>
+                    <div class="info-value" id="fileMd5"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="progressContainer" class="card" style="display: none;">
+            <h3>传输进度</h3>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">0%</div>
+            </div>
+            <div id="chunkStatus" class="chunk-status">
+                <div class="chunk-status-title">分片状态</div>
+                <div class="chunk-grid" id="chunkGrid"></div>
+            </div>
+        </div>
+
+        <div id="statusMessage" class="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        class PromisePool {
+            constructor(concurrency) {
+                this.concurrency = concurrency;
+                this.running = 0;
+                this.queue = [];
+                this.results = [];
+            }
+
+            async add(promiseFunction, index) {
+                return new Promise((resolve, reject) => {
+                    this.queue.push({
+                        promiseFunction,
+                        resolve,
+                        reject,
+                        index
+                    });
+                    this.process();
+                });
+            }
+
+            async process() {
+                if (this.running >= this.concurrency || this.queue.length === 0) {
+                    return;
+                }
+
+                // Start a batch if we have capacity
+                const toStart = Math.min(this.concurrency - this.running, this.queue.length);
+
+                for (let i = 0; i < toStart; i++) {
+                    const task = this.queue.shift();
+                    this.startTask(task);
+                }
+            }
+
+            async startTask(task) {
+                this.running++;
+
+                task.promiseFunction()
+                    .then(result => {
+                        this.results[task.index] = result;
+                        task.resolve(result);
+                    })
+                    .catch(error => {
+                        this.results[task.index] = { error: error.message };
+                        task.reject(error);
+                    })
+                    .finally(() => {
+                        this.running--;
+                        this.process();
+                    });
+            }
+        }
+
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const checkBtn = document.getElementById('checkBtn');
+        const fileInfoDiv = document.getElementById('fileInfo');
+        const fileNameSpan = document.getElementById('fileName');
+        const fileSizeSpan = document.getElementById('fileSize');
+        const fileMd5Span = document.getElementById('fileMd5');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const chunkStatusDiv = document.getElementById('chunkGrid');
+        const statusMessage = document.getElementById('statusMessage');
+
+        let selectedFile = null;
+        let fileMd5 = null;
+
+        // Initialize
+        fileInput.addEventListener('change', handleFileSelect);
+        uploadBtn.addEventListener('click', startUpload);
+        checkBtn.addEventListener('click', checkFileExistence);
+
+        // Drag and drop support
+        dropZone.addEventListener('click', () => {
+            fileInput.value = ''; // 允许重复选择同一文件
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect({ target: { files: files } });
+            }
+        });
+
+        async function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+
+            if (selectedFile) {
+                uploadBtn.disabled = false;
+                checkBtn.disabled = false;
+
+                // Show file info
+                fileNameSpan.textContent = selectedFile.name;
+                fileSizeSpan.textContent = formatFileSize(selectedFile.size);
+                fileInfoDiv.style.display = 'block';
+
+                // Reset progress and status
+                resetProgress();
+
+                // Calculate MD5
+                showStatus('◇ 正在计算MD5...', 'info');
+                try {
+                    fileMd5 = await calculateFileMd5(selectedFile);
+                    fileMd5Span.textContent = fileMd5;
+                    showStatus('◆ 文件已选择，MD5计算完成', 'success');
+                } catch (error) {
+                    showStatus(`✕ 计算MD5时出错: ${error.message}`, 'error');
+                }
+            } else {
+                uploadBtn.disabled = true;
+                checkBtn.disabled = true;
+                fileInfoDiv.style.display = 'none';
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 字节';
+
+            const k = 1024;
+            const sizes = ['字节', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status ${type}`;
+            statusMessage.style.display = 'flex';
+
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        function resetProgress() {
+            progressContainer.style.display = 'none';
+            progressFill.style.width = '0%';
+            progressText.textContent = '0%';
+            chunkStatusDiv.innerHTML = '';
+            statusMessage.style.display = 'none';
+        }
+
+        // Simple MD5 calculation using SparkMD5
+        async function calculateFileMd5(file) {
+            return new Promise((resolve, reject) => {
+                const blobSlice = File.prototype.slice || File.prototype.mozSlice || File.prototype.webkitSlice;
+                const chunkSize = 2097152; // Read in chunks of 2MB
+                const chunks = Math.ceil(file.size / chunkSize);
+                let currentChunk = 0;
+
+                const spark = new SparkMD5.ArrayBuffer();
+                const fileReader = new FileReader();
+
+                fileReader.onload = function(e) {
+                    spark.append(e.target.result); // Append array buffer
+                    currentChunk++;
+
+                    if (currentChunk < chunks) {
+                        loadNext();
+                    } else {
+                        const md5 = spark.end();
+                        resolve(md5);
+                    }
+                };
+
+                fileReader.onerror = function() {
+                    reject(new Error('读取文件时出错'));
+                };
+
+                function loadNext() {
+                    const start = currentChunk * chunkSize;
+                    const end = Math.min(start + chunkSize, file.size);
+
+                    fileReader.readAsArrayBuffer(blobSlice.call(file, start, end));
+                }
+
+                loadNext();
+            });
+        }
+
+        async function checkFileExistence() {
+            if (!fileMd5) {
+                showStatus('✕ 未选择文件', 'error');
+                return;
+            }
+
+            try {
+                showStatus('◉ 正在检查文件...', 'info');
+
+                const response = await fetch('/api/file/check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `md5=${encodeURIComponent(fileMd5)}`
+                });
+
+                const result = await response.json();
+
+                if (result.exists) {
+                    showStatus(`◆ 文件已存在！大小: ${formatFileSize(result.fileInfo.size)}`, 'success');
+                } else {
+                    showStatus('◎ 服务器上不存在该文件', 'info');
+                }
+            } catch (error) {
+                showStatus(`✕ 检查文件时出错: ${error.message}`, 'error');
+            }
+        }
+
+        async function startUpload() {
+            if (!selectedFile) {
+                showStatus('✕ 请先选择文件', 'error');
+                return;
+            }
+
+            // Reset progress for new upload
+            resetProgress();
+
+            if (!fileMd5) {
+                showStatus('◇ 正在计算文件MD5...', 'info');
+                try {
+                    fileMd5 = await calculateFileMd5(selectedFile);
+                    fileMd5Span.textContent = fileMd5;
+                } catch (error) {
+                    showStatus(`✕ 计算MD5时出错: ${error.message}`, 'error');
+                    return;
+                }
+            }
+
+            // Check if file already exists
+            try {
+                const response = await fetch('/api/file/check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `md5=${encodeURIComponent(fileMd5)}`
+                });
+
+                const result = await response.json();
+
+                if (result.exists) {
+                    showStatus(`◆ 文件已存在！大小: ${formatFileSize(result.fileInfo.size)}`, 'success');
+                    return;
+                }
+            } catch (error) {
+                showStatus(`✕ 检查文件时出错: ${error.message}`, 'error');
+                return;
+            }
+
+            // Start chunked upload
+            await uploadInChunks();
+        }
+
+        async function uploadInChunks() {
+            const chunkSize = 1024 * 1024; // 1MB per chunk
+            const totalChunks = Math.ceil(selectedFile.size / chunkSize);
+
+            // Show progress container
+            progressContainer.style.display = 'block';
+            chunkStatusDiv.innerHTML = '';
+
+            // Create chunk status indicators
+            for (let i = 0; i < totalChunks; i++) {
+                const chunkElement = document.createElement('div');
+                chunkElement.className = 'chunk-item chunk-pending';
+                chunkElement.title = `分片 ${i}`;
+                chunkElement.id = `chunk-${i}`;
+                chunkStatusDiv.appendChild(chunkElement);
+            }
+
+            // Create PromisePool with max 5 concurrent uploads
+            const pool = new PromisePool(5);
+            const results = new Array(totalChunks);
+
+            // Upload chunks using pool to control concurrency
+            for (let i = 0; i < totalChunks; i++) {
+                const chunkIndex = i;
+                const start = chunkIndex * chunkSize;
+                const end = Math.min(start + chunkSize, selectedFile.size);
+
+                pool.add(async () => {
+                    const chunk = selectedFile.slice(start, end);
+                    return uploadChunk(chunk, chunkIndex, totalChunks);
+                }, chunkIndex).then(result => {
+                    results[chunkIndex] = result;
+                }).catch(error => {
+                    results[chunkIndex] = { error: error.message };
+                });
+            }
+
+            // Wait for all chunks to be processed
+            while (pool.running > 0 || pool.queue.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            // Check results
+            const failedChunks = results.filter(r => r && r.error);
+
+            if (failedChunks.length > 0) {
+                showStatus(`✕ ${failedChunks.length} 个分片上传失败，请重试`, 'error');
+            } else {
+                // Update final progress
+                progressFill.style.width = '100%';
+                progressText.textContent = '100% - 传输完成';
+
+                // Check if file was merged (last chunk returns success message)
+                const mergedResult = results.find(r => r && r.message === 'File upload completed and merged');
+                if (mergedResult) {
+                    showStatus('◆ 上传完成！', 'success');
+                } else {
+                    showStatus('◆ 所有分片上传成功', 'success');
+                }
+            }
+        }
+
+        async function uploadChunk(chunk, chunkIndex, totalChunks) {
+            // Update chunk status to uploading
+            const chunkElement = document.getElementById(`chunk-${chunkIndex}`);
+            if (chunkElement) {
+                chunkElement.className = 'chunk-item chunk-uploading';
+            }
+
+            const formData = new FormData();
+            formData.append('md5', fileMd5);
+            formData.append('chunkIndex', chunkIndex);
+            formData.append('totalChunks', totalChunks);
+            formData.append('fileName', selectedFile.name);
+            formData.append('chunk', chunk, `chunk_${chunkIndex}`);
+
+            try {
+                const response = await fetch('/api/file/chunk', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || '上传失败');
+                }
+
+                // Update chunk status to success
+                if (chunkElement) {
+                    chunkElement.className = 'chunk-item chunk-success';
+                }
+
+                // Update overall progress
+                const progress = ((chunkIndex + 1) / totalChunks) * 100;
+                progressFill.style.width = `${progress}%`;
+                progressText.textContent = `${Math.round(progress)}% - 分片 ${chunkIndex + 1}/${totalChunks}`;
+
+                // Log progress to console
+                console.log(`分片 ${chunkIndex} 上传成功`);
+
+                return result;
+            } catch (error) {
+                // Update chunk status to error
+                if (chunkElement) {
+                    chunkElement.className = 'chunk-item chunk-error';
+                }
+
+                throw error;
+            }
+        }
+    </script>
+</body>
+</html>
